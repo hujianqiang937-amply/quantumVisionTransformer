@@ -29,9 +29,16 @@ class HybridMLP(nn.Module):
         self.linear1 = nn.Linear(28*28, embed_dim)
         self.linear3 = nn.Linear(embed_dim, num_classes)
 
-        aersim = AerSimulator(method='statevector', device='GPU')
-        sampler = Sampler()
-        sampler.set_options(backend=aersim)
+        # aersim = AerSimulator(method='statevector', device='GPU')
+        # sampler = Sampler()
+        # sampler.set_options(backend=aersim)
+        # 修复官方代码与当前 Qiskit 版本的兼容性问题
+        sampler = Sampler(
+            backend_options={
+                "method": "statevector",
+                "device": "GPU"
+            }
+        )
 
         self.vx = C.Vx(embed_dim, vec_loader_name, matrix_mul_name)
         qc, num_weights = self.vx()

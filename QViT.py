@@ -32,9 +32,16 @@ class quantumAttentionBlock(nn.Module):
 
         self.num_patches = num_patches + 1#+1 because it takes into account the class token vector
 
-        aersim = AerSimulator(method='statevector', device='GPU')
-        sampler = Sampler()
-        sampler.set_options(backend=aersim)
+        # aersim = AerSimulator(method='statevector', device='GPU')
+        # sampler = Sampler()
+        # sampler.set_options(backend=aersim)
+        # 修复官方代码与当前 Qiskit 版本的兼容性问题
+        sampler = Sampler(
+            backend_options={
+                "method": "statevector",
+                "device": "GPU"
+            }
+        )
 
         self.vx = C.Vx(embed_dim, vec_loader, matrix_mul)
         qc, num_weights = self.vx()
@@ -71,6 +78,7 @@ class quantumAttentionBlock(nn.Module):
         #I create this list to obtain the indices for all the states in which we have a qubit in 1, and the others in 0!!!
         #e.g. for embed_dim == num_qubits == 4 : 1:|0001>, 2:|0010>, 4:|0100>, 8:|1000>
         ei = [ 2**j for j in range(0,self.embed_dim)]
+        # 5 个 Token（4 Patch+CLS）,要跑 5 次量子线路
         for i in range(self.num_patches):
           vx[:, :, i] = self._vx(parameters[:,i,:])[:, ei]
         
@@ -78,6 +86,10 @@ class quantumAttentionBlock(nn.Module):
         #I create this list to obtain the indices for all the states in which we have qubit0 in 1.
         #Then we sum the probabilities of each of this states to obtain the probability that this qubit is in 1
         ei = [j for j in range(1,2**self.embed_dim, 2)]
+        # 一张图片仅仅计算注意力就要执行25次量子线路
+        # 再乘：batch=32、395 step
+        # 每个 Step 大约：25×32=800 次量子线路调用
+        # 还没算 Parameter Shift 梯度
         for i in range(self.num_patches):
           for j in range(self.num_patches):
             p = torch.cat((parameters[:,i,:], parameters[:, j, :]), dim = 1)
